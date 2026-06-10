@@ -4,8 +4,11 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -36,15 +39,42 @@ public class GameScreen implements Screen {
     private BitmapFont font;
     private SpriteBatch hudBatch;
 
+    private Texture lumiSheet;
+    private Texture lumiIdleSheet;
+    private Texture lumiJumpSheet;
+    private Texture lumiHurtTexture;
+    private Animation<TextureRegion> lumiAnimDerecha;
+    private Animation<TextureRegion> lumiAnimIzquierda;
+    private Animation<TextureRegion> lumiAnimIdle;
+    private Animation<TextureRegion> lumiAnimSaltoDer;
+    private Animation<TextureRegion> lumiAnimSaltoIzq;
+    private TextureRegion lumiHurtRegion;
+    private float tiempoAnim = 0f;
+    private float tiempoSalto = 0f;
+    private boolean mirandoDerecha = true;
+    private boolean moviendose = false;
+    private SpriteBatch gameBatch;
+
     private float tiempoToque = 0f;
     private boolean tocando = false;
     private static final float LIMITE_TAP = 0.2f;
     private static final float PPM = 64f;
 
     private float cooldownCuervo = 0f;
-    private static final float TIEMPO_COOLDOWN = 1.0f;
+    private static final float TIEMPO_COOLDOWN = 2.0f;
     private boolean irAGameOver = false;
     private boolean irAVictoria = false;
+
+    // Timer dedicado para mostrar la animación hurt
+    private float tiempoHurt = 0f;
+    private static final float DURACION_HURT = 0.8f;
+
+    // Para procesar el golpe fuera del ContactListener
+    private boolean golpePendiente = false;
+    private float golpeDirX = 0f;
+
+    // Bandera para ir a GameOver DESPUÉS de que termine la animación hurt
+    private boolean gameOverPendiente = false;
 
     public GameScreen(RaicesMain game) {
         this.game = game;
@@ -81,12 +111,18 @@ public class GameScreen implements Screen {
                     if ("cuervo".equals(userData) && cooldownCuervo <= 0f) {
                         cooldownCuervo = TIEMPO_COOLDOWN;
                         GameState.perderVida();
-                        lumiBody.setLinearVelocity(
-                            lumiBody.getLinearVelocity().x,
-                            4f
-                        );
+
+                        // Activa animación hurt
+                        tiempoHurt = DURACION_HURT;
+
+                        // Guarda dirección para procesar fuera del step
+                        golpePendiente = true;
+                        float dirX = lumiBody.getPosition().x - ramaBody.getPosition().x;
+                        golpeDirX = dirX > 0 ? 3f : -3f;
+
                         if (GameState.sinVidas()) {
-                            irAGameOver = true;
+                            // No ir a GameOver todavía, esperar a que termine la animación hurt
+                            gameOverPendiente = true;
                         }
                     }
                 }
@@ -109,6 +145,57 @@ public class GameScreen implements Screen {
         font = new BitmapFont();
         font.getData().setScale(2f);
         hudBatch = new SpriteBatch();
+
+        lumiSheet = new Texture("lumi_caminando.png");
+        TextureRegion[][] frames = TextureRegion.split(lumiSheet,
+            lumiSheet.getWidth() / 10,
+            lumiSheet.getHeight()
+        );
+        TextureRegion[] framesDerecha   = new TextureRegion[5];
+        TextureRegion[] framesIzquierda = new TextureRegion[5];
+        for (int i = 0; i < 5; i++) {
+            framesDerecha[i]   = frames[0][i];
+            framesIzquierda[i] = frames[0][i + 5];
+        }
+        lumiAnimDerecha   = new Animation<>(0.12f, framesDerecha);
+        lumiAnimIzquierda = new Animation<>(0.12f, framesIzquierda);
+        lumiAnimDerecha.setPlayMode(Animation.PlayMode.LOOP);
+        lumiAnimIzquierda.setPlayMode(Animation.PlayMode.LOOP);
+
+        lumiIdleSheet = new Texture("lumibases.png");
+        TextureRegion[][] framesIdle = TextureRegion.split(lumiIdleSheet,
+            lumiIdleSheet.getWidth() / 7,
+            lumiIdleSheet.getHeight()
+        );
+        TextureRegion[] idleArray = new TextureRegion[7];
+        for (int i = 0; i < 7; i++) {
+            idleArray[i] = framesIdle[0][i];
+        }
+        lumiAnimIdle = new Animation<>(0.20f, idleArray);
+        lumiAnimIdle.setPlayMode(Animation.PlayMode.LOOP);
+
+        lumiJumpSheet = new Texture("lumi_salto.png");
+        lumiJumpSheet.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        int hJump = lumiJumpSheet.getHeight();
+
+        TextureRegion[] saltoDerArray = new TextureRegion[2];
+        saltoDerArray[0] = new TextureRegion(lumiJumpSheet,  26, 0, 276, hJump);
+        saltoDerArray[1] = new TextureRegion(lumiJumpSheet, 394, 0, 253, hJump);
+        lumiAnimSaltoDer = new Animation<>(0.18f, saltoDerArray);
+        lumiAnimSaltoDer.setPlayMode(Animation.PlayMode.NORMAL);
+
+        TextureRegion[] saltoIzqArray = new TextureRegion[2];
+        saltoIzqArray[0] = new TextureRegion(saltoDerArray[0]);
+        saltoIzqArray[0].flip(true, false);
+        saltoIzqArray[1] = new TextureRegion(saltoDerArray[1]);
+        saltoIzqArray[1].flip(true, false);
+        lumiAnimSaltoIzq = new Animation<>(0.18f, saltoIzqArray);
+        lumiAnimSaltoIzq.setPlayMode(Animation.PlayMode.NORMAL);
+
+        lumiHurtTexture = new Texture("lumi_herida.png");
+        lumiHurtRegion  = new TextureRegion(lumiHurtTexture);
+
+        gameBatch = new SpriteBatch();
     }
 
     private void crearLumi() {
@@ -151,10 +238,32 @@ public class GameScreen implements Screen {
 
         if (cooldownCuervo > 0f) cooldownCuervo -= delta;
 
+        // Bajar el timer de hurt
+        if (tiempoHurt > 0f) {
+            tiempoHurt -= delta;
+
+            // Cuando termina la animación hurt, recién ahora se procesa el GameOver
+            if (tiempoHurt <= 0f && gameOverPendiente) {
+                gameOverPendiente = false;
+                game.setScreen(new GameOverScreen(game));
+                return;
+            }
+        }
+
         world.step(delta, 6, 2);
         branchManager.actualizar(delta);
 
-        // Cambios de pantalla fuera del world.step()
+        // Procesar golpe pendiente DESPUÉS del world.step
+        if (golpePendiente) {
+            golpePendiente = false;
+            lumiBody.setTransform(
+                lumiBody.getPosition().x + golpeDirX,
+                lumiBody.getPosition().y + 0.5f,
+                0
+            );
+            lumiBody.setLinearVelocity(golpeDirX, 5f);
+        }
+
         if (irAGameOver) {
             game.setScreen(new GameOverScreen(game));
             return;
@@ -203,17 +312,27 @@ public class GameScreen implements Screen {
 
             if (tiempoToque > LIMITE_TAP) {
                 if (touchX < anchoPantalla / 3f) {
+                    mirandoDerecha = false;
+                    moviendose = true;
                     lumiBody.setLinearVelocity(-3f, lumiBody.getLinearVelocity().y);
                 } else if (touchX > (anchoPantalla / 3f) * 2f) {
+                    mirandoDerecha = true;
+                    moviendose = true;
                     lumiBody.setLinearVelocity(3f, lumiBody.getLinearVelocity().y);
+                } else {
+                    moviendose = false;
                 }
             }
 
         } else {
+            moviendose = false;
+
             if (tocando && tiempoToque <= LIMITE_TAP && enSuelo) {
                 if (touchX < anchoPantalla / 3f) {
+                    mirandoDerecha = false;
                     lumiBody.applyLinearImpulse(new Vector2(-2f, 4.5f), lumiBody.getWorldCenter(), true);
                 } else if (touchX > (anchoPantalla / 3f) * 2f) {
+                    mirandoDerecha = true;
                     lumiBody.applyLinearImpulse(new Vector2(2f, 4.5f), lumiBody.getWorldCenter(), true);
                 } else {
                     lumiBody.applyLinearImpulse(new Vector2(0, 4.5f), lumiBody.getWorldCenter(), true);
@@ -230,6 +349,51 @@ public class GameScreen implements Screen {
 
         debugRenderer.render(world, camera.combined);
 
+        // --- Animación ---
+        tiempoAnim += delta;
+        TextureRegion frameActual;
+
+        if (enSuelo) tiempoSalto = 0f;
+
+        if (tiempoHurt > 0f) {
+            // Prioridad máxima: mostrar hurt mientras el timer esté activo
+            frameActual = lumiHurtRegion;
+        } else if (!enSuelo) {
+            tiempoSalto += delta;
+            Animation<TextureRegion> animSalto = mirandoDerecha ? lumiAnimSaltoDer : lumiAnimSaltoIzq;
+            frameActual = animSalto.getKeyFrame(tiempoSalto);
+        } else {
+            if (moviendose) {
+                Animation<TextureRegion> animActual = mirandoDerecha ? lumiAnimDerecha : lumiAnimIzquierda;
+                frameActual = animActual.getKeyFrame(tiempoAnim);
+            } else {
+                frameActual = lumiAnimIdle.getKeyFrame(tiempoAnim);
+            }
+        }
+
+        float lumiX  = lumiBody.getPosition().x;
+        float lumiY  = lumiBody.getPosition().y;
+        float tamano = 1.8f;
+
+        gameBatch.setProjectionMatrix(camera.combined);
+        gameBatch.begin();
+        if (!mirandoDerecha && !moviendose && enSuelo && cooldownCuervo <= 0f) {
+            gameBatch.draw(frameActual,
+                lumiX + tamano / 2f,
+                lumiY - tamano / 2f,
+                -tamano,
+                tamano
+            );
+        } else {
+            gameBatch.draw(frameActual,
+                lumiX - tamano / 2f,
+                lumiY - tamano / 2f,
+                tamano,
+                tamano
+            );
+        }
+        gameBatch.end();
+
         hudBatch.begin();
         font.draw(hudBatch,
             "Vidas: " + GameState.vidas,
@@ -245,6 +409,11 @@ public class GameScreen implements Screen {
         debugRenderer.dispose();
         font.dispose();
         hudBatch.dispose();
+        lumiSheet.dispose();
+        lumiIdleSheet.dispose();
+        lumiJumpSheet.dispose();
+        lumiHurtTexture.dispose();
+        gameBatch.dispose();
     }
 
     @Override public void show() {}
