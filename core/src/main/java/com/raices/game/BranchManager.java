@@ -1,5 +1,6 @@
 package com.raices.game;
 
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.EdgeShape;
@@ -10,7 +11,7 @@ public class BranchManager {
 
     private World world;
     private ArrayList<Body> ramas;
-    private ArrayList<Cuervo> cuervos; // lista de cuervos del nivel
+    private ArrayList<Cuervo> cuervos;
     private float anchoMundo;
 
     private static final float TIEMPO_INESTABLE = 2f;
@@ -24,6 +25,13 @@ public class BranchManager {
 
     private float xInestable, yInestable, anchoInestable;
 
+    // Temblor visual de la rama inestable
+    private float tiempoTemblor = 0f;
+    private float offsetTemblor = 0f;
+
+    // Guardamos los anchos originales para poder dibujarlos después
+    private float[] anchosPorIndice;
+
     public BranchManager(World world, float anchoMundo) {
         this.world = world;
         this.anchoMundo = anchoMundo;
@@ -36,9 +44,11 @@ public class BranchManager {
 
     private void crearRamasNivel1() {
         float[][] datos = Level1.getRamas(anchoMundo);
+        anchosPorIndice = new float[datos.length];
 
         for (int i = 0; i < datos.length; i++) {
             crearRama(datos[i][0], datos[i][1], datos[i][2]);
+            anchosPorIndice[i] = datos[i][2];
 
             if (i == indiceInestable) {
                 xInestable     = datos[i][0];
@@ -48,7 +58,6 @@ public class BranchManager {
         }
 
         // Cuervo 1 en rama 4 (índice 3) — lento
-        // datos[3] = { x, y, ancho } de la rama 4
         float[] rama4 = datos[3];
         cuervos.add(new Cuervo(world, rama4[0], rama4[1], rama4[2], false));
 
@@ -85,12 +94,23 @@ public class BranchManager {
     }
 
     public void actualizar(float delta) {
-        // Lógica rama inestable — igual que antes
         if (sobreInestable && !ramaEliminada) {
             timerInestable += delta;
+
+            // Temblor: frecuencia y amplitud crecen con el tiempo
+            float progreso = timerInestable / TIEMPO_INESTABLE; // 0..1
+            float frecuencia = 8f + progreso * 20f;   // 8 Hz → 28 Hz
+            float amplitud   = 0.02f + progreso * 0.10f; // sutil → notable
+            tiempoTemblor += delta;
+            offsetTemblor = MathUtils.sin(tiempoTemblor * frecuencia * MathUtils.PI2) * amplitud;
+
             if (timerInestable >= TIEMPO_INESTABLE) {
                 eliminarRamaInestable();
             }
+        } else {
+            // Fuera de la rama inestable: sin temblor
+            offsetTemblor = 0f;
+            tiempoTemblor = 0f;
         }
 
         if (ramaEliminada) {
@@ -100,7 +120,6 @@ public class BranchManager {
             }
         }
 
-        // Actualizar cada cuervo en cada frame
         for (Cuervo c : cuervos) {
             c.actualizar(delta);
         }
@@ -112,6 +131,7 @@ public class BranchManager {
             ramas.set(indiceInestable, null);
             ramaEliminada  = true;
             sobreInestable = false;
+            offsetTemblor  = 0f;
         }
     }
 
@@ -130,7 +150,10 @@ public class BranchManager {
     public float getTimerInestable() { return timerInestable; }
     public boolean isRamaEliminada() { return ramaEliminada; }
 
-    // Devuelve el índice de la rama si el body es una rama, -1 si no
+    // Offset horizontal en metros para el dibujo visual de la rama inestable
+    public float getOffsetTemblor() { return offsetTemblor; }
+    public int getIndiceInestable() { return indiceInestable; }
+
     public int getIndiceRama(Body body) {
         for (int i = 0; i < ramas.size(); i++) {
             if (ramas.get(i) == body) return i;
@@ -138,11 +161,28 @@ public class BranchManager {
         return -1;
     }
 
-    // Devuelve true si el body es uno de los cuervos
     public boolean esCuervo(Body body) {
         for (Cuervo c : cuervos) {
             if (c.body == body) return true;
         }
         return false;
+    }
+
+    // Devuelve los datos de cada rama para poder dibujarlas visualmente.
+    // Cada float[] contiene: { x_centro, y_centro, ancho_metros, indice }
+    // Las ramas eliminadas (null) se omiten.
+    public ArrayList<float[]> getDatosRamas() {
+        ArrayList<float[]> datos = new ArrayList<>();
+        for (int i = 0; i < ramas.size(); i++) {
+            if (ramas.get(i) == null) continue;
+            Body b = ramas.get(i);
+            datos.add(new float[]{
+                b.getPosition().x,
+                b.getPosition().y,
+                anchosPorIndice[i],
+                i   // índice, para identificar la inestable al dibujar
+            });
+        }
+        return datos;
     }
 }

@@ -4,11 +4,14 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.NinePatch;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -21,6 +24,7 @@ import com.badlogic.gdx.physics.box2d.EdgeShape;
 import com.badlogic.gdx.physics.box2d.FixtureDef;
 import com.badlogic.gdx.physics.box2d.Manifold;
 import com.badlogic.gdx.physics.box2d.World;
+import java.util.ArrayList;
 
 public class GameScreen implements Screen {
 
@@ -34,11 +38,15 @@ public class GameScreen implements Screen {
     private boolean enSuelo = false;
     private float anchoPantallaMetros;
     private float alturaMinimaVisible;
-    private float alturaMaxima = 0f;
+
+    // Detección de caída
+    private float yAlSalirSuperficie = 0f;
+    private static final float ALTURA_CAIDA_DANIO = 4.5f;
 
     private BitmapFont font;
     private SpriteBatch hudBatch;
 
+    // Sprites de Lumi
     private Texture lumiSheet;
     private Texture lumiIdleSheet;
     private Texture lumiJumpSheet;
@@ -55,26 +63,44 @@ public class GameScreen implements Screen {
     private boolean moviendose = false;
     private SpriteBatch gameBatch;
 
+    // Fondo y ramas
+    private Texture fondoTextura;
+    private float alturaFondoMetros;
+    private static final float FONDO_OFFSET_Y = 14f;
+
+    private Texture ramaTextura;
+    private NinePatch ramaPatch;
+    private static final float ALTURA_RAMA_VISUAL = 2f;
+
     private float tiempoToque = 0f;
     private boolean tocando = false;
-    private static final float LIMITE_TAP = 0.2f;
-    private static final float PPM = 64f;
+    private static final float LIMITE_TAP     = 0.2f;
+    private static final float PPM            = 64f;
+    private static final float LUMI_OFFSET_Y  = 0.5f;
+
+    private static final float SUELO_Y        = -0.7f;
+    private static final float LUMI_SPAWN_Y   = -0.6f;
+    private static final float CAIDA_Y        = -0.1f;
 
     private float cooldownCuervo = 0f;
     private static final float TIEMPO_COOLDOWN = 2.0f;
     private boolean irAGameOver = false;
     private boolean irAVictoria = false;
 
-    // Timer dedicado para mostrar la animación hurt
     private float tiempoHurt = 0f;
     private static final float DURACION_HURT = 0.8f;
 
-    // Para procesar el golpe fuera del ContactListener
     private boolean golpePendiente = false;
     private float golpeDirX = 0f;
-
-    // Bandera para ir a GameOver DESPUÉS de que termine la animación hurt
     private boolean gameOverPendiente = false;
+
+    // ── Hojas cayendo ──────────────────────────────────────────
+    private Texture hojaTextura;
+    private static final int NUM_HOJAS = 30;
+    private float[] hojaX, hojaY, hojaVX, hojaVY;
+    private float[] hojaRot, hojaRotVel, hojaAncho, hojaAlto, hojaFase;
+    private float[][] hojaColor;
+    // ───────────────────────────────────────────────────────────
 
     public GameScreen(RaicesMain game) {
         this.game = game;
@@ -92,8 +118,6 @@ public class GameScreen implements Screen {
         world.setContactListener(new ContactListener() {
             @Override
             public void beginContact(Contact contact) {
-                enSuelo = true;
-
                 Body bodyA = contact.getFixtureA().getBody();
                 Body bodyB = contact.getFixtureB().getBody();
 
@@ -102,6 +126,10 @@ public class GameScreen implements Screen {
                 else if (bodyB == lumiBody) ramaBody = bodyA;
 
                 if (ramaBody != null) {
+                    if ("pared".equals(ramaBody.getUserData())) return;
+
+                    enSuelo = true;
+
                     int indice = branchManager.getIndiceRama(ramaBody);
                     if (indice >= 0) {
                         branchManager.lumiAterrizo(indice);
@@ -111,25 +139,34 @@ public class GameScreen implements Screen {
                     if ("cuervo".equals(userData) && cooldownCuervo <= 0f) {
                         cooldownCuervo = TIEMPO_COOLDOWN;
                         GameState.perderVida();
-
-                        // Activa animación hurt
                         tiempoHurt = DURACION_HURT;
 
-                        // Guarda dirección para procesar fuera del step
                         golpePendiente = true;
                         float dirX = lumiBody.getPosition().x - ramaBody.getPosition().x;
                         golpeDirX = dirX > 0 ? 3f : -3f;
 
                         if (GameState.sinVidas()) {
-                            // No ir a GameOver todavía, esperar a que termine la animación hurt
                             gameOverPendiente = true;
                         }
                     }
+                } else {
+                    enSuelo = true;
                 }
             }
 
             @Override
             public void endContact(Contact contact) {
+                Body bodyA = contact.getFixtureA().getBody();
+                Body bodyB = contact.getFixtureB().getBody();
+
+                Body otroBody = null;
+                if (bodyA == lumiBody) otroBody = bodyB;
+                else if (bodyB == lumiBody) otroBody = bodyA;
+
+                if (otroBody != null && "pared".equals(otroBody.getUserData())) return;
+
+                yAlSalirSuperficie = lumiBody.getPosition().y;
+
                 enSuelo = false;
                 branchManager.lumiSalto();
             }
@@ -140,12 +177,14 @@ public class GameScreen implements Screen {
 
         crearLumi();
         crearSuelo();
+        crearParedes();
         branchManager = new BranchManager(world, anchoPantallaMetros);
 
         font = new BitmapFont();
         font.getData().setScale(2f);
         hudBatch = new SpriteBatch();
 
+        // Animación caminar
         lumiSheet = new Texture("lumi_caminando.png");
         TextureRegion[][] frames = TextureRegion.split(lumiSheet,
             lumiSheet.getWidth() / 10,
@@ -162,6 +201,7 @@ public class GameScreen implements Screen {
         lumiAnimDerecha.setPlayMode(Animation.PlayMode.LOOP);
         lumiAnimIzquierda.setPlayMode(Animation.PlayMode.LOOP);
 
+        // Animación idle (7 frames)
         lumiIdleSheet = new Texture("lumibases.png");
         TextureRegion[][] framesIdle = TextureRegion.split(lumiIdleSheet,
             lumiIdleSheet.getWidth() / 7,
@@ -174,6 +214,7 @@ public class GameScreen implements Screen {
         lumiAnimIdle = new Animation<>(0.20f, idleArray);
         lumiAnimIdle.setPlayMode(Animation.PlayMode.LOOP);
 
+        // Animación salto
         lumiJumpSheet = new Texture("lumi_salto.png");
         lumiJumpSheet.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         int hJump = lumiJumpSheet.getHeight();
@@ -192,8 +233,72 @@ public class GameScreen implements Screen {
         lumiAnimSaltoIzq = new Animation<>(0.18f, saltoIzqArray);
         lumiAnimSaltoIzq.setPlayMode(Animation.PlayMode.NORMAL);
 
+        // Sprite de daño
         lumiHurtTexture = new Texture("lumi_herida.png");
         lumiHurtRegion  = new TextureRegion(lumiHurtTexture);
+
+        // Fondo del nivel
+        fondoTextura = new Texture("fondo_nivel1c.png");
+        alturaFondoMetros = Level1.getAlturaFinal() * 1.5f + FONDO_OFFSET_Y;
+
+        // NinePatch de ramas
+        ramaTextura = new Texture("rama.png");
+        ramaPatch   = new NinePatch(ramaTextura, 270, 270, 0, 0);
+        ramaPatch.setLeftWidth(0.5f);
+        ramaPatch.setRightWidth(0.5f);
+        ramaPatch.setTopHeight(0f);
+        ramaPatch.setBottomHeight(0f);
+
+        // ── Inicializar hojas cayendo ──────────────────────────
+        Pixmap pm = new Pixmap(16, 8, Pixmap.Format.RGBA8888);
+        pm.setColor(0f, 0f, 0f, 0f);
+        pm.fill();
+        pm.setColor(1f, 1f, 1f, 1f);
+        for (int py = 0; py < 8; py++) {
+            for (int px = 0; px < 16; px++) {
+                float dx = (px - 8f) / 7f;
+                float dy = (py - 4f) / 3.5f;
+                if (dx * dx + dy * dy <= 1f) pm.drawPixel(px, py);
+            }
+        }
+        hojaTextura = new Texture(pm);
+        pm.dispose();
+
+        float[][] colores = {
+            {0.90f, 0.45f, 0.10f}, // naranja
+            {0.80f, 0.25f, 0.05f}, // rojo-naranja
+            {0.92f, 0.75f, 0.15f}, // dorado
+            {0.65f, 0.30f, 0.08f}, // marrón
+            {0.95f, 0.60f, 0.10f}, // naranja claro
+        };
+
+        hojaX      = new float[NUM_HOJAS];
+        hojaY      = new float[NUM_HOJAS];
+        hojaVX     = new float[NUM_HOJAS];
+        hojaVY     = new float[NUM_HOJAS];
+        hojaRot    = new float[NUM_HOJAS];
+        hojaRotVel = new float[NUM_HOJAS];
+        hojaAncho  = new float[NUM_HOJAS];
+        hojaAlto   = new float[NUM_HOJAS];
+        hojaFase   = new float[NUM_HOJAS];
+        hojaColor  = new float[NUM_HOJAS][3];
+
+        for (int i = 0; i < NUM_HOJAS; i++) {
+            hojaX[i]      = MathUtils.random(0f, anchoPantallaMetros);
+            hojaY[i]      = MathUtils.random(0f, Level1.getAlturaFinal());
+            hojaVX[i]     = MathUtils.random(-0.3f, 0.3f);
+            hojaVY[i]     = MathUtils.random(-0.8f, -0.3f);
+            hojaRot[i]    = MathUtils.random(0f, 360f);
+            hojaRotVel[i] = MathUtils.random(-90f, 90f);
+            hojaAncho[i]  = MathUtils.random(0.15f, 0.32f);
+            hojaAlto[i]   = hojaAncho[i] * 0.5f;
+            hojaFase[i]   = MathUtils.random(0f, MathUtils.PI2);
+            float[] c     = colores[MathUtils.random(colores.length - 1)];
+            hojaColor[i][0] = c[0];
+            hojaColor[i][1] = c[1];
+            hojaColor[i][2] = c[2];
+        }
+        // ───────────────────────────────────────────────────────
 
         gameBatch = new SpriteBatch();
     }
@@ -201,7 +306,7 @@ public class GameScreen implements Screen {
     private void crearLumi() {
         BodyDef def = new BodyDef();
         def.type = BodyDef.BodyType.DynamicBody;
-        def.position.set(anchoPantallaMetros / 2f, 1f);
+        def.position.set(anchoPantallaMetros / 2f, LUMI_SPAWN_Y);
 
         lumiBody = world.createBody(def);
 
@@ -209,9 +314,9 @@ public class GameScreen implements Screen {
         forma.setRadius(0.4f);
 
         FixtureDef fixture = new FixtureDef();
-        fixture.shape = forma;
-        fixture.density = 1f;
-        fixture.friction = 0.4f;
+        fixture.shape       = forma;
+        fixture.density     = 1f;
+        fixture.friction    = 0.4f;
         fixture.restitution = 0f;
 
         lumiBody.createFixture(fixture);
@@ -221,7 +326,7 @@ public class GameScreen implements Screen {
     private void crearSuelo() {
         BodyDef def = new BodyDef();
         def.type = BodyDef.BodyType.StaticBody;
-        def.position.set(0, 0);
+        def.position.set(0, SUELO_Y);
 
         Body suelo = world.createBody(def);
 
@@ -231,6 +336,41 @@ public class GameScreen implements Screen {
         forma.dispose();
     }
 
+    private void crearParedes() {
+        float xIzq = anchoPantallaMetros / 2f - 5.8f;
+        float xDer = anchoPantallaMetros / 2f + 5.8f;
+        float yBase = SUELO_Y;
+        float yTop  = 5f;
+
+        // Pared izquierda
+        BodyDef defIzq = new BodyDef();
+        defIzq.type = BodyDef.BodyType.StaticBody;
+        Body paredIzq = world.createBody(defIzq);
+        paredIzq.setUserData("pared");
+        EdgeShape formaIzq = new EdgeShape();
+        formaIzq.set(xIzq, yBase, xIzq, yTop);
+        FixtureDef fxIzq = new FixtureDef();
+        fxIzq.shape       = formaIzq;
+        fxIzq.restitution = 0f;
+        fxIzq.friction    = 0f;
+        paredIzq.createFixture(fxIzq);
+        formaIzq.dispose();
+
+        // Pared derecha
+        BodyDef defDer = new BodyDef();
+        defDer.type = BodyDef.BodyType.StaticBody;
+        Body paredDer = world.createBody(defDer);
+        paredDer.setUserData("pared");
+        EdgeShape formaDer = new EdgeShape();
+        formaDer.set(xDer, yBase, xDer, yTop);
+        FixtureDef fxDer = new FixtureDef();
+        fxDer.shape       = formaDer;
+        fxDer.restitution = 0f;
+        fxDer.friction    = 0f;
+        paredDer.createFixture(fxDer);
+        formaDer.dispose();
+    }
+
     @Override
     public void render(float delta) {
         Gdx.gl.glClearColor(0.05f, 0.1f, 0.05f, 1f);
@@ -238,11 +378,8 @@ public class GameScreen implements Screen {
 
         if (cooldownCuervo > 0f) cooldownCuervo -= delta;
 
-        // Bajar el timer de hurt
         if (tiempoHurt > 0f) {
             tiempoHurt -= delta;
-
-            // Cuando termina la animación hurt, recién ahora se procesa el GameOver
             if (tiempoHurt <= 0f && gameOverPendiente) {
                 gameOverPendiente = false;
                 game.setScreen(new GameOverScreen(game));
@@ -253,7 +390,6 @@ public class GameScreen implements Screen {
         world.step(delta, 6, 2);
         branchManager.actualizar(delta);
 
-        // Procesar golpe pendiente DESPUÉS del world.step
         if (golpePendiente) {
             golpePendiente = false;
             lumiBody.setTransform(
@@ -277,20 +413,18 @@ public class GameScreen implements Screen {
             return;
         }
 
-        if (lumiBody.getPosition().y > alturaMaxima) {
-            alturaMaxima = lumiBody.getPosition().y;
-        }
-
-        if (lumiBody.getPosition().y < 1.2f && alturaMaxima > 3f) {
+        // Caída al suelo
+        if (lumiBody.getPosition().y < CAIDA_Y && yAlSalirSuperficie > ALTURA_CAIDA_DANIO) {
+            yAlSalirSuperficie = 0f;
             GameState.perderVida();
 
             if (GameState.sinVidas()) {
                 game.setScreen(new GameOverScreen(game));
                 return;
             } else {
-                lumiBody.setTransform(anchoPantallaMetros / 2f, 1f, 0);
+                lumiBody.setTransform(anchoPantallaMetros / 2f, LUMI_SPAWN_Y, 0);
                 lumiBody.setLinearVelocity(0, 0);
-                alturaMaxima = 0f;
+                yAlSalirSuperficie = 0f;
             }
         }
 
@@ -303,7 +437,7 @@ public class GameScreen implements Screen {
 
         alturaMinimaVisible = camera.position.y - (camera.viewportHeight / 2f);
 
-        float touchX = Gdx.input.getX();
+        float touchX        = Gdx.input.getX();
         float anchoPantalla = Gdx.graphics.getWidth();
 
         if (Gdx.input.isTouched()) {
@@ -347,16 +481,13 @@ public class GameScreen implements Screen {
             }
         }
 
-        debugRenderer.render(world, camera.combined);
-
-        // --- Animación ---
+        // Seleccionar frame de Lumi
         tiempoAnim += delta;
         TextureRegion frameActual;
 
         if (enSuelo) tiempoSalto = 0f;
 
         if (tiempoHurt > 0f) {
-            // Prioridad máxima: mostrar hurt mientras el timer esté activo
             frameActual = lumiHurtRegion;
         } else if (!enSuelo) {
             tiempoSalto += delta;
@@ -375,24 +506,83 @@ public class GameScreen implements Screen {
         float lumiY  = lumiBody.getPosition().y;
         float tamano = 1.8f;
 
+        // ── Actualizar hojas ───────────────────────────────────
+        float camTop = camera.position.y + camera.viewportHeight / 2f;
+        float camBot = camera.position.y - camera.viewportHeight / 2f;
+        for (int i = 0; i < NUM_HOJAS; i++) {
+            hojaX[i] += (hojaVX[i] + 0.2f * MathUtils.sin(hojaFase[i])) * delta;
+            hojaY[i] += hojaVY[i] * delta;
+            hojaRot[i] += hojaRotVel[i] * delta;
+            hojaFase[i] += delta * 1.8f;
+
+            // Reaparece por arriba cuando sale por abajo
+            if (hojaY[i] < camBot - 1f) {
+                hojaX[i] = MathUtils.random(0f, anchoPantallaMetros);
+                hojaY[i] = camTop + MathUtils.random(0.5f, 3f);
+            }
+            // Envolver horizontalmente
+            if (hojaX[i] < -0.5f) hojaX[i] = anchoPantallaMetros + 0.5f;
+            if (hojaX[i] > anchoPantallaMetros + 0.5f) hojaX[i] = -0.5f;
+        }
+        // ───────────────────────────────────────────────────────
+
         gameBatch.setProjectionMatrix(camera.combined);
         gameBatch.begin();
+
+        // 1. Fondo
+        gameBatch.draw(fondoTextura,
+            0,
+            -FONDO_OFFSET_Y,
+            anchoPantallaMetros,
+            alturaFondoMetros
+        );
+
+        // 2. Ramas
+        ArrayList<float[]> datosRamas = branchManager.getDatosRamas();
+        for (float[] d : datosRamas) {
+            // d[3] contiene el índice; aplicar temblor solo a la rama inestable
+            float offsetX = ((int) d[3] == branchManager.getIndiceInestable())
+                ? branchManager.getOffsetTemblor()
+                : 0f;
+            float rx = d[0] - d[2] / 2f + offsetX;
+            float ry = d[1] - ALTURA_RAMA_VISUAL / 2f;
+            ramaPatch.draw(gameBatch, rx, ry, d[2], ALTURA_RAMA_VISUAL);
+        }
+
+        // 3. Lumi
         if (!mirandoDerecha && !moviendose && enSuelo && cooldownCuervo <= 0f) {
             gameBatch.draw(frameActual,
                 lumiX + tamano / 2f,
-                lumiY - tamano / 2f,
-                -tamano,
-                tamano
+                lumiY - tamano / 2f + LUMI_OFFSET_Y,
+                -tamano, tamano
             );
         } else {
             gameBatch.draw(frameActual,
                 lumiX - tamano / 2f,
-                lumiY - tamano / 2f,
-                tamano,
-                tamano
+                lumiY - tamano / 2f + LUMI_OFFSET_Y,
+                tamano, tamano
             );
         }
+
+        // 4. Hojas (capa frontal)
+        for (int i = 0; i < NUM_HOJAS; i++) {
+            gameBatch.setColor(hojaColor[i][0], hojaColor[i][1], hojaColor[i][2], 0.85f);
+            gameBatch.draw(hojaTextura,
+                hojaX[i] - hojaAncho[i] / 2f,
+                hojaY[i] - hojaAlto[i] / 2f,
+                hojaAncho[i] / 2f, hojaAlto[i] / 2f, // origen centro
+                hojaAncho[i], hojaAlto[i],
+                1f, 1f,
+                hojaRot[i],
+                0, 0, 16, 8,
+                false, false
+            );
+        }
+        gameBatch.setColor(1f, 1f, 1f, 1f); // resetear color del batch
+
         gameBatch.end();
+
+        debugRenderer.render(world, camera.combined);
 
         hudBatch.begin();
         font.draw(hudBatch,
@@ -413,6 +603,9 @@ public class GameScreen implements Screen {
         lumiIdleSheet.dispose();
         lumiJumpSheet.dispose();
         lumiHurtTexture.dispose();
+        fondoTextura.dispose();
+        ramaTextura.dispose();
+        hojaTextura.dispose();
         gameBatch.dispose();
     }
 
