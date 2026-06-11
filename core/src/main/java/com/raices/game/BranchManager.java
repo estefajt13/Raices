@@ -1,5 +1,6 @@
 package com.raices.game;
 
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -25,11 +26,9 @@ public class BranchManager {
 
     private float xInestable, yInestable, anchoInestable;
 
-    // Temblor visual de la rama inestable
     private float tiempoTemblor = 0f;
     private float offsetTemblor = 0f;
 
-    // Guardamos los anchos originales para poder dibujarlos después
     private float[] anchosPorIndice;
 
     public BranchManager(World world, float anchoMundo) {
@@ -57,11 +56,9 @@ public class BranchManager {
             }
         }
 
-        // Cuervo 1 en rama 4 (índice 3) — lento
         float[] rama4 = datos[3];
         cuervos.add(new Cuervo(world, rama4[0], rama4[1], rama4[2], false));
 
-        // Cuervo 2 en rama 8 (índice 7) — rápido
         float[] rama8 = datos[7];
         cuervos.add(new Cuervo(world, rama8[0], rama8[1], rama8[2], true));
     }
@@ -97,18 +94,16 @@ public class BranchManager {
         if (sobreInestable && !ramaEliminada) {
             timerInestable += delta;
 
-            // Temblor: frecuencia y amplitud crecen con el tiempo
-            float progreso = timerInestable / TIEMPO_INESTABLE; // 0..1
-            float frecuencia = 8f + progreso * 20f;   // 8 Hz → 28 Hz
-            float amplitud   = 0.02f + progreso * 0.10f; // sutil → notable
-            tiempoTemblor += delta;
-            offsetTemblor = MathUtils.sin(tiempoTemblor * frecuencia * MathUtils.PI2) * amplitud;
+            float progreso   = timerInestable / TIEMPO_INESTABLE;
+            float frecuencia = 8f + progreso * 20f;
+            float amplitud   = 0.02f + progreso * 0.10f;
+            tiempoTemblor   += delta;
+            offsetTemblor    = MathUtils.sin(tiempoTemblor * frecuencia * MathUtils.PI2) * amplitud;
 
             if (timerInestable >= TIEMPO_INESTABLE) {
                 eliminarRamaInestable();
             }
         } else {
-            // Fuera de la rama inestable: sin temblor
             offsetTemblor = 0f;
             tiempoTemblor = 0f;
         }
@@ -147,12 +142,10 @@ public class BranchManager {
         timerReaparece = 0f;
     }
 
-    public float getTimerInestable() { return timerInestable; }
-    public boolean isRamaEliminada() { return ramaEliminada; }
-
-    // Offset horizontal en metros para el dibujo visual de la rama inestable
-    public float getOffsetTemblor() { return offsetTemblor; }
-    public int getIndiceInestable() { return indiceInestable; }
+    public float getTimerInestable()  { return timerInestable; }
+    public boolean isRamaEliminada()  { return ramaEliminada; }
+    public float getOffsetTemblor()   { return offsetTemblor; }
+    public int getIndiceInestable()   { return indiceInestable; }
 
     public int getIndiceRama(Body body) {
         for (int i = 0; i < ramas.size(); i++) {
@@ -168,9 +161,6 @@ public class BranchManager {
         return false;
     }
 
-    // Devuelve los datos de cada rama para poder dibujarlas visualmente.
-    // Cada float[] contiene: { x_centro, y_centro, ancho_metros, indice }
-    // Las ramas eliminadas (null) se omiten.
     public ArrayList<float[]> getDatosRamas() {
         ArrayList<float[]> datos = new ArrayList<>();
         for (int i = 0; i < ramas.size(); i++) {
@@ -180,9 +170,21 @@ public class BranchManager {
                 b.getPosition().x,
                 b.getPosition().y,
                 anchosPorIndice[i],
-                i   // índice, para identificar la inestable al dibujar
+                i
             });
         }
         return datos;
+    }
+
+    public void dibujarCuervos(SpriteBatch batch) {
+        for (Cuervo c : cuervos) {
+            c.dibujar(batch);
+        }
+    }
+
+    public void dispose() {
+        for (Cuervo c : cuervos) {
+            c.dispose();
+        }
     }
 }

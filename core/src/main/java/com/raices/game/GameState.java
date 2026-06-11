@@ -2,26 +2,70 @@ package com.raices.game;
 
 public class GameState {
 
-    public static int vidas = 3;
-    public static int nivel = 1;
-    public static int puntaje = 0;
+    // ── Vidas y nivel ────────────────────────────────────────────────────────
+    public static int vidasMaximas = 3;
+    public static int vidas        = vidasMaximas;
+    public static int nivel        = 1;
+    public static int puntaje      = 0;
 
-    // Niveles desbloqueados (1 = desbloqueado, 0 = bloqueado)
-    // Por defecto, solo el nivel 1 está desbloqueado
+    // ── Niveles desbloqueados (índice 0 no se usa, 1-4 son los niveles) ──────
     private static boolean[] nivelesDesbloqueados = {false, true, false, false, false};
-    // indice 0 no se usa, indices 1-4 son los niveles
 
+    // ── Jugador activo ───────────────────────────────────────────────────────
+    public static long   jugadorId     = -1;
+    public static String nombreJugador = "";
+    public static byte[] fotoJugador   = null;   // bytes JPEG para previsualizar
+
+    // ── Bridge a persistencia (lo asigna AndroidLauncher) ───────────────────
+    // Se usa la interfaz PlayerRepository definida en core, implementada por Android
+    public static PlayerRepository db = null;
+
+    // ────────────────────────────────────────────────────────────────────────
+    //  Métodos de jugador
+    // ────────────────────────────────────────────────────────────────────────
+
+    public static void setJugador(long id, String nombre, byte[] foto) {
+        jugadorId     = id;
+        nombreJugador = nombre;
+        fotoJugador   = foto;
+    }
+
+    /**
+     * Guarda o recupera el jugador en SQLite y devuelve su id.
+     * Si el bridge no está conectado (ej: desktop) devuelve -1.
+     */
+    public static long guardarJugadorEnBD(String nombre, byte[] foto) {
+        if (db != null) return db.guardarJugador(nombre, foto);
+        return -1;
+    }
+
+    /**
+     * Actualiza el puntaje en BD solo si supera el récord anterior.
+     * Se llama desde WinScreen y GameOverScreen.
+     */
+    public static void guardarPuntajeEnBD() {
+        if (db != null && jugadorId >= 0) {
+            db.actualizarPuntaje(jugadorId, puntaje);
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    //  Métodos de juego
+    // ────────────────────────────────────────────────────────────────────────
+
+    /** Reinicia todo (vidas, puntaje). Se usa al volver al menú principal. */
     public static void reiniciar() {
-        vidas = 3;
+        vidas  = vidasMaximas;
         puntaje = 0;
     }
 
+    /** Reinicia solo las vidas para el nivel actual. */
     public static void reiniciarNivel() {
-        vidas = 3;
+        vidas = vidasMaximas;
     }
 
     public static void perderVida() {
-        vidas--;
+        if (vidas > 0) vidas--;
     }
 
     public static boolean sinVidas() {
@@ -41,21 +85,22 @@ public class GameState {
         return false;
     }
 
+    /**
+     * Llama al completar un nivel:
+     *  - desbloquea el siguiente
+     *  - suma puntaje según vidas restantes
+     *  - guarda el récord en BD
+     */
     public static void completarNivel(int nivel) {
-        // Desbloquea el siguiente nivel si existe
-        if (nivel < 4) {
-            desbloquearNivel(nivel + 1);
-        }
-        // Aumenta el puntaje basado en las vidas restantes
+        if (nivel < 4) desbloquearNivel(nivel + 1);
         puntaje += vidas * 100;
+        guardarPuntajeEnBD();   // ← guarda automáticamente al ganar
     }
 
     public static int getNivelSiguiente(int nivelActual) {
         for (int i = nivelActual + 1; i <= 4; i++) {
-            if (esNivelDesbloqueado(i)) {
-                return i;
-            }
+            if (esNivelDesbloqueado(i)) return i;
         }
-        return -1; // No hay siguiente nivel
+        return -1;
     }
 }
