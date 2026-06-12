@@ -69,10 +69,10 @@ public class GameScreen implements Screen {
     private Animation<TextureRegion> lumiAnimSaltoDer;
     private Animation<TextureRegion> lumiAnimSaltoIzq;
     private TextureRegion lumiHurtRegion;
-    private float tiempoAnim = 0f;
+    private float tiempoAnim  = 0f;
     private float tiempoSalto = 0f;
     private boolean mirandoDerecha = true;
-    private boolean moviendose = false;
+    private boolean moviendose     = false;
     private SpriteBatch gameBatch;
 
     private Texture fondoTextura;
@@ -84,9 +84,9 @@ public class GameScreen implements Screen {
     private static final float ALTURA_RAMA_VISUAL = 2f;
 
     private float tiempoToque = 0f;
-    private boolean tocando = false;
-    private static final float LIMITE_TAP    = 0.2f;
-    private static final float PPM           = 64f;
+    private boolean tocando   = false;
+    private static final float LIMITE_TAP = 0.2f;
+    private static final float PPM        = 64f;
     private static final float LUMI_OFFSET_Y = 0.5f;
 
     private static final float SUELO_Y      = -0.7f;
@@ -101,10 +101,11 @@ public class GameScreen implements Screen {
     private float tiempoHurt = 0f;
     private static final float DURACION_HURT = 0.8f;
 
-    private boolean golpePendiente = false;
-    private float golpeDirX = 0f;
+    private boolean golpePendiente    = false;
+    private float   golpeDirX         = 0f;
     private boolean gameOverPendiente = false;
 
+    // ── Hojas ────────────────────────────────────────────────────────────────
     private Texture hojaTextura;
     private static final int NUM_HOJAS = 30;
     private float[] hojaX, hojaY, hojaVX, hojaVY;
@@ -116,7 +117,7 @@ public class GameScreen implements Screen {
 
         camera = new OrthographicCamera();
         camera.setToOrtho(false,
-            Gdx.graphics.getWidth() / PPM,
+            Gdx.graphics.getWidth()  / PPM,
             Gdx.graphics.getHeight() / PPM);
 
         anchoPantallaMetros = Gdx.graphics.getWidth() / PPM;
@@ -196,7 +197,7 @@ public class GameScreen implements Screen {
 
         musicaTextura = new Texture("botones_musica.png");
         int mitadMusica = musicaTextura.getWidth() / 2;
-        btnMusicaOn   = new TextureRegion(musicaTextura, 0,           0, mitadMusica, musicaTextura.getHeight());
+        btnMusicaOn   = new TextureRegion(musicaTextura, 0, 0, mitadMusica, musicaTextura.getHeight());
         btnMusicaMute = new TextureRegion(musicaTextura, mitadMusica, 0, mitadMusica, musicaTextura.getHeight());
         pausaTextura  = new Texture("boton_pausa.png");
 
@@ -214,8 +215,7 @@ public class GameScreen implements Screen {
         lumiSheet = new Texture("lumi_caminando.png");
         TextureRegion[][] frames = TextureRegion.split(lumiSheet,
             lumiSheet.getWidth() / 10,
-            lumiSheet.getHeight()
-        );
+            lumiSheet.getHeight());
         TextureRegion[] framesDerecha   = new TextureRegion[5];
         TextureRegion[] framesIzquierda = new TextureRegion[5];
         for (int i = 0; i < 5; i++) {
@@ -230,12 +230,9 @@ public class GameScreen implements Screen {
         lumiIdleSheet = new Texture("lumibases.png");
         TextureRegion[][] framesIdle = TextureRegion.split(lumiIdleSheet,
             lumiIdleSheet.getWidth() / 7,
-            lumiIdleSheet.getHeight()
-        );
+            lumiIdleSheet.getHeight());
         TextureRegion[] idleArray = new TextureRegion[7];
-        for (int i = 0; i < 7; i++) {
-            idleArray[i] = framesIdle[0][i];
-        }
+        for (int i = 0; i < 7; i++) idleArray[i] = framesIdle[0][i];
         lumiAnimIdle = new Animation<>(0.20f, idleArray);
         lumiAnimIdle.setPlayMode(Animation.PlayMode.LOOP);
 
@@ -244,24 +241,23 @@ public class GameScreen implements Screen {
         int hJump = lumiJumpSheet.getHeight();
 
         TextureRegion[] saltoDerArray = new TextureRegion[2];
-        saltoDerArray[0] = new TextureRegion(lumiJumpSheet,  26, 0, 276, hJump);
+        saltoDerArray[0] = new TextureRegion(lumiJumpSheet, 26,  0, 276, hJump);
         saltoDerArray[1] = new TextureRegion(lumiJumpSheet, 394, 0, 253, hJump);
         lumiAnimSaltoDer = new Animation<>(0.18f, saltoDerArray);
         lumiAnimSaltoDer.setPlayMode(Animation.PlayMode.NORMAL);
 
         TextureRegion[] saltoIzqArray = new TextureRegion[2];
-        saltoIzqArray[0] = new TextureRegion(saltoDerArray[0]);
-        saltoIzqArray[0].flip(true, false);
-        saltoIzqArray[1] = new TextureRegion(saltoDerArray[1]);
-        saltoIzqArray[1].flip(true, false);
+        saltoIzqArray[0] = new TextureRegion(saltoDerArray[0]); saltoIzqArray[0].flip(true, false);
+        saltoIzqArray[1] = new TextureRegion(saltoDerArray[1]); saltoIzqArray[1].flip(true, false);
         lumiAnimSaltoIzq = new Animation<>(0.18f, saltoIzqArray);
         lumiAnimSaltoIzq.setPlayMode(Animation.PlayMode.NORMAL);
 
         lumiHurtTexture = new Texture("lumi_herida.png");
         lumiHurtRegion  = new TextureRegion(lumiHurtTexture);
 
+        // Fondo fijo hasta tener los assets de cada nivel
         fondoTextura = new Texture("fondo_nivel1c.png");
-        alturaFondoMetros = Level1.getAlturaFinal() * 1.5f + FONDO_OFFSET_Y;
+        alturaFondoMetros = getAlturaFinalNivel() * 1.5f + FONDO_OFFSET_Y;
 
         ramaTextura = new Texture("rama.png");
         ramaPatch   = new NinePatch(ramaTextura, 270, 270, 0, 0);
@@ -270,7 +266,7 @@ public class GameScreen implements Screen {
         ramaPatch.setTopHeight(0f);
         ramaPatch.setBottomHeight(0f);
 
-        // Hojas cayendo
+        // Hojas decorativas
         Pixmap pm = new Pixmap(16, 8, Pixmap.Format.RGBA8888);
         pm.setColor(0f, 0f, 0f, 0f);
         pm.fill();
@@ -306,7 +302,7 @@ public class GameScreen implements Screen {
 
         for (int i = 0; i < NUM_HOJAS; i++) {
             hojaX[i]      = MathUtils.random(0f, anchoPantallaMetros);
-            hojaY[i]      = MathUtils.random(0f, Level1.getAlturaFinal());
+            hojaY[i]      = MathUtils.random(0f, getAlturaFinalNivel());
             hojaVX[i]     = MathUtils.random(-0.3f, 0.3f);
             hojaVY[i]     = MathUtils.random(-0.8f, -0.3f);
             hojaRot[i]    = MathUtils.random(0f, 360f);
@@ -321,6 +317,15 @@ public class GameScreen implements Screen {
         }
 
         gameBatch = new SpriteBatch();
+    }
+
+    private float getAlturaFinalNivel() {
+        switch (GameState.nivel) {
+            case 2:  return Level2.getAlturaFinal();
+            case 3:  return Level3.getAlturaFinal();
+            case 4:  return Level4.getAlturaFinal();
+            default: return Level1.getAlturaFinal();
+        }
     }
 
     private void crearLumi() {
@@ -423,7 +428,7 @@ public class GameScreen implements Screen {
             return;
         }
 
-        if (lumiBody.getPosition().y >= Level1.getAlturaFinal() && !irAVictoria) {
+        if (lumiBody.getPosition().y >= getAlturaFinalNivel() && !irAVictoria) {
             irAVictoria = true;
         }
         if (irAVictoria) {
@@ -454,7 +459,7 @@ public class GameScreen implements Screen {
 
         alturaMinimaVisible = camera.position.y - (camera.viewportHeight / 2f);
 
-        float touchX        = Gdx.input.getX();
+        float touchX       = Gdx.input.getX();
         float anchoPantalla = Gdx.graphics.getWidth();
 
         if (Gdx.input.isTouched()) {
@@ -464,11 +469,11 @@ public class GameScreen implements Screen {
             if (tiempoToque > LIMITE_TAP) {
                 if (touchX < anchoPantalla / 3f) {
                     mirandoDerecha = false;
-                    moviendose = true;
+                    moviendose     = true;
                     lumiBody.setLinearVelocity(-3f, lumiBody.getLinearVelocity().y);
                 } else if (touchX > (anchoPantalla / 3f) * 2f) {
                     mirandoDerecha = true;
-                    moviendose = true;
+                    moviendose     = true;
                     lumiBody.setLinearVelocity(3f, lumiBody.getLinearVelocity().y);
                 } else {
                     moviendose = false;
@@ -491,14 +496,13 @@ public class GameScreen implements Screen {
             }
 
             tiempoToque = 0f;
-            tocando = false;
+            tocando     = false;
 
             if (enSuelo) {
                 lumiBody.setLinearVelocity(0, lumiBody.getLinearVelocity().y);
             }
         }
 
-        // Animación de Lumi
         tiempoAnim += delta;
         TextureRegion frameActual;
 
@@ -519,31 +523,29 @@ public class GameScreen implements Screen {
             }
         }
 
-        float lumiX  = lumiBody.getPosition().x;
-        float lumiY  = lumiBody.getPosition().y;
+        float lumiX = lumiBody.getPosition().x;
+        float lumiY = lumiBody.getPosition().y;
         float tamano = 1.8f;
 
-        // Actualizar hojas
         float camTop = camera.position.y + camera.viewportHeight / 2f;
         float camBot = camera.position.y - camera.viewportHeight / 2f;
         for (int i = 0; i < NUM_HOJAS; i++) {
             hojaX[i] += (hojaVX[i] + 0.2f * MathUtils.sin(hojaFase[i])) * delta;
             hojaY[i] += hojaVY[i] * delta;
-            hojaRot[i] += hojaRotVel[i] * delta;
+            hojaRot[i]  += hojaRotVel[i] * delta;
             hojaFase[i] += delta * 1.8f;
 
             if (hojaY[i] < camBot - 1f) {
                 hojaX[i] = MathUtils.random(0f, anchoPantallaMetros);
                 hojaY[i] = camTop + MathUtils.random(0.5f, 3f);
             }
-            if (hojaX[i] < -0.5f) hojaX[i] = anchoPantallaMetros + 0.5f;
-            if (hojaX[i] > anchoPantallaMetros + 0.5f) hojaX[i] = -0.5f;
+            if (hojaX[i] < -0.5f)                      hojaX[i] = anchoPantallaMetros + 0.5f;
+            if (hojaX[i] > anchoPantallaMetros + 0.5f)  hojaX[i] = -0.5f;
         }
 
         gameBatch.setProjectionMatrix(camera.combined);
         gameBatch.begin();
 
-        // 1. Fondo
         gameBatch.draw(fondoTextura,
             0,
             -FONDO_OFFSET_Y,
@@ -551,21 +553,17 @@ public class GameScreen implements Screen {
             alturaFondoMetros
         );
 
-        // 2. Ramas
         ArrayList<float[]> datosRamas = branchManager.getDatosRamas();
         for (float[] d : datosRamas) {
-            float offsetX = ((int) d[3] == branchManager.getIndiceInestable())
-                ? branchManager.getOffsetTemblor()
-                : 0f;
+            int indice  = (int) d[3];
+            float offsetX = branchManager.getOffsetTemblor(indice);
             float rx = d[0] - d[2] / 2f + offsetX;
             float ry = d[1] - ALTURA_RAMA_VISUAL / 2f;
             ramaPatch.draw(gameBatch, rx, ry, d[2], ALTURA_RAMA_VISUAL);
         }
 
-        // 3. Cuervos — entre ramas y Lumi
         branchManager.dibujarCuervos(gameBatch);
 
-        // 4. Lumi
         if (!mirandoDerecha && !moviendose && enSuelo && cooldownCuervo <= 0f) {
             gameBatch.draw(frameActual,
                 lumiX + tamano / 2f,
@@ -580,7 +578,6 @@ public class GameScreen implements Screen {
             );
         }
 
-        // 5. Hojas (capa frontal)
         for (int i = 0; i < NUM_HOJAS; i++) {
             gameBatch.setColor(hojaColor[i][0], hojaColor[i][1], hojaColor[i][2], 0.85f);
             gameBatch.draw(hojaTextura,
@@ -595,13 +592,8 @@ public class GameScreen implements Screen {
             );
         }
         gameBatch.setColor(1f, 1f, 1f, 1f);
-
         gameBatch.end();
 
-        // VER LAS LINEAS FISICAS (RAMA, SUELO, CIRCULOS)
-        //debugRenderer.render(world, camera.combined);
-
-        // HUD
         hudBatch.begin();
 
         int vidasMax    = GameState.vidasMaximas;
@@ -653,13 +645,13 @@ public class GameScreen implements Screen {
         fondoTextura.dispose();
         ramaTextura.dispose();
         hojaTextura.dispose();
-        branchManager.dispose(); // ← libera texturas de los cuervos
+        branchManager.dispose();
         gameBatch.dispose();
     }
 
-    @Override public void show() {}
+    @Override public void show()   {}
     @Override public void resize(int width, int height) {}
-    @Override public void pause() {}
+    @Override public void pause()  {}
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide()   {}
 }

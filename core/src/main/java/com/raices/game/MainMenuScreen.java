@@ -24,40 +24,27 @@ public class MainMenuScreen implements Screen {
     private Texture texturaTitulo;
     private static final float TITULO_ANCHO = 500f;
     private static final float TITULO_ALTO  = 150f;
-    private static final float TITULO_MARGEN_TOP = 40f; // espacio desde el borde superior
+    private static final float TITULO_MARGEN_TOP = 40f;
 
     // ── Fondo ────────────────────────────────────────────────────────────────
     private Texture fondoTextura;
 
-    // ── Textura base de botones ────────────────────────────────────────────
+    // ── Botón base ──────────────────────────────────────────────────────────
     private Texture botonBaseTextura;
 
-    // Dimensiones de los botones
+    // Dimensiones
     private static final float BOTON_ANCHO = 250f;
     private static final float BOTON_ALTO = 60f;
     private static final float BOTON_ESPACIO = 80f;
 
-    // Posiciones de los botones
+    // Posiciones
     private float botonJugarX, botonJugarY;
-    private float botonPuntajesX, botonPuntajesY;
-
-    // Colores
-    private static final float COLOR_VERDE_OSCURO_R = 0.08f;
-    private static final float COLOR_VERDE_OSCURO_G = 0.15f;
-    private static final float COLOR_VERDE_OSCURO_B = 0.08f;
-
-    private static final float COLOR_BOTON_R = 0.4f;
-    private static final float COLOR_BOTON_G = 0.6f;
-    private static final float COLOR_BOTON_B = 0.2f;
-
-    private static final float COLOR_BOTON_HOVER_R = 0.5f;
-    private static final float COLOR_BOTON_HOVER_G = 0.7f;
-    private static final float COLOR_BOTON_HOVER_B = 0.3f;
+    private float botonPerfilX, botonPerfilY;
+    private float botonCerrarSesionX, botonCerrarSesionY;
 
     public MainMenuScreen(RaicesMain game) {
         this.game = game;
 
-        // Se elimina fontGrande — ya no se usa para el título
         font = new BitmapFont();
         font.getData().setScale(2.0f);
 
@@ -69,13 +56,8 @@ public class MainMenuScreen implements Screen {
 
         glyphLayout = new GlyphLayout();
 
-        // Cargar imagen del título
         texturaTitulo = new Texture(Gdx.files.internal("titulo_raices.png"));
-
-        // Cargar fondo
         fondoTextura = new Texture(Gdx.files.internal("fondo_menu.png"));
-
-        // Cargar textura base de botones
         botonBaseTextura = new Texture(Gdx.files.internal("boton_base.png"));
 
         calcularPosicionesBotones();
@@ -86,76 +68,94 @@ public class MainMenuScreen implements Screen {
         float alto = Gdx.graphics.getHeight();
         float centroX = ancho / 2f;
 
-        // Botón Jugar - centrado
+        // Jugar
         botonJugarX = centroX - BOTON_ANCHO / 2f;
-        botonJugarY = alto / 2f - 40f;
+        botonJugarY = alto / 2f;
 
-        // Botón Perfil - debajo del primero
-        botonPuntajesX = centroX - BOTON_ANCHO / 2f;
-        botonPuntajesY = botonJugarY - BOTON_ESPACIO;
+        // Perfil
+        botonPerfilX = centroX - BOTON_ANCHO / 2f;
+        botonPerfilY = botonJugarY - BOTON_ESPACIO;
+
+        // Cerrar sesión (nuevo)
+        botonCerrarSesionX = centroX - BOTON_ANCHO / 2f;
+        botonCerrarSesionY = botonPerfilY - BOTON_ESPACIO;
     }
 
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(COLOR_VERDE_OSCURO_R, COLOR_VERDE_OSCURO_G, COLOR_VERDE_OSCURO_B, 1f);
+        Gdx.gl.glClearColor(0.08f, 0.15f, 0.08f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
-        // ── Fondo ────────────────────────────────────────────────────────────
+        // Fondo
         batch.draw(fondoTextura, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
-        // ── Imagen del título (reemplaza fontGrande.draw "RAÍCES") ───────────
+        // Título
         float tituloX = Gdx.graphics.getWidth() / 2f - TITULO_ANCHO / 2f;
         float tituloY = Gdx.graphics.getHeight() - TITULO_ALTO - TITULO_MARGEN_TOP;
         batch.draw(texturaTitulo, tituloX, tituloY, TITULO_ANCHO, TITULO_ALTO);
 
-        // ── Botones como texturas ────────────────────────────────────────────
+        // Botones
         batch.draw(botonBaseTextura, botonJugarX, botonJugarY, BOTON_ANCHO, BOTON_ALTO);
-        batch.draw(botonBaseTextura, botonPuntajesX, botonPuntajesY, BOTON_ANCHO, BOTON_ALTO);
+        batch.draw(botonBaseTextura, botonPerfilX, botonPerfilY, BOTON_ANCHO, BOTON_ALTO);
+        batch.draw(botonBaseTextura, botonCerrarSesionX, botonCerrarSesionY, BOTON_ANCHO, BOTON_ALTO);
 
-        // ── Texto de los botones ─────────────────────────────────────────────
-
-        String textoJugar = "Jugar";
-        glyphLayout.setText(font, textoJugar);
-        float textoJugarX = botonJugarX + BOTON_ANCHO / 2f - glyphLayout.width / 2f;
-        float textoJugarY = botonJugarY + BOTON_ALTO / 2f + font.getLineHeight() / 3f;
-        font.draw(batch, textoJugar, textoJugarX, textoJugarY);
-
-        String textoPerfil = "Perfil";
-        glyphLayout.setText(font, textoPerfil);
-        float textoPerfilX = botonPuntajesX + BOTON_ANCHO / 2f - glyphLayout.width / 2f;
-        float textoPerfilY = botonPuntajesY + BOTON_ALTO / 2f + font.getLineHeight() / 3f;
-        font.draw(batch, textoPerfil, textoPerfilX, textoPerfilY);
+        // Texto botones
+        drawCenteredText("Jugar", botonJugarX, botonJugarY);
+        drawCenteredText("Perfil", botonPerfilX, botonPerfilY);
+        drawCenteredText("Cerrar sesión", botonCerrarSesionX, botonCerrarSesionY);
 
         batch.end();
 
-        // ── Input ────────────────────────────────────────────────────────────
+        // Input
         if (Gdx.input.justTouched()) {
             Vector3 clickPos = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
             camera.unproject(clickPos);
 
-            if (estaSobreBotonJugar(clickPos.x, clickPos.y)) {
+            if (estaSobreBoton(clickPos.x, clickPos.y, botonJugarX, botonJugarY)) {
                 game.setScreen(new LevelSelectScreen(game));
                 return;
             }
 
-            if (estaSobreBotonPuntajes(clickPos.x, clickPos.y)) {
+            if (estaSobreBoton(clickPos.x, clickPos.y, botonPerfilX, botonPerfilY)) {
                 game.setScreen(new PerfilScreen(game));
+                return;
+            }
+
+            if (estaSobreBoton(clickPos.x, clickPos.y, botonCerrarSesionX, botonCerrarSesionY)) {
+                cerrarSesion();
                 return;
             }
         }
     }
 
-    private boolean estaSobreBotonJugar(float x, float y) {
-        return x >= botonJugarX && x <= botonJugarX + BOTON_ANCHO &&
-            y >= botonJugarY && y <= botonJugarY + BOTON_ALTO;
+    // ── Método reutilizable para texto centrado ─────────────────────────────
+    private void drawCenteredText(String texto, float x, float y) {
+        glyphLayout.setText(font, texto);
+        float textX = x + BOTON_ANCHO / 2f - glyphLayout.width / 2f;
+        float textY = y + BOTON_ALTO / 2f + font.getLineHeight() / 3f;
+        font.draw(batch, texto, textX, textY);
     }
 
-    private boolean estaSobreBotonPuntajes(float x, float y) {
-        return x >= botonPuntajesX && x <= botonPuntajesX + BOTON_ANCHO &&
-            y >= botonPuntajesY && y <= botonPuntajesY + BOTON_ALTO;
+    private boolean estaSobreBoton(float x, float y, float bx, float by) {
+        return x >= bx && x <= bx + BOTON_ANCHO &&
+            y >= by && y <= by + BOTON_ALTO;
+    }
+
+    // ── Lógica de cerrar sesión ─────────────────────────────────────────────
+    private void cerrarSesion() {
+
+        // 🔴 Aquí conectas tu sistema real
+        // Ejemplo:
+        // PlayerRepository.getInstance().logout();
+        // GameState.getInstance().clear();
+
+        System.out.println("Sesión cerrada");
+
+        // Redirigir a login
+        game.setScreen(new LoginScreen(game));
     }
 
     @Override public void show() {}
@@ -166,9 +166,9 @@ public class MainMenuScreen implements Screen {
         calcularPosicionesBotones();
     }
 
-    @Override public void pause()  {}
+    @Override public void pause() {}
     @Override public void resume() {}
-    @Override public void hide()   {}
+    @Override public void hide() {}
 
     @Override
     public void dispose() {

@@ -8,7 +8,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector3;
 
 public class PauseScreen implements Screen {
 
@@ -20,108 +20,128 @@ public class PauseScreen implements Screen {
     private GlyphLayout layout;
     private OrthographicCamera camera;
 
-    // Botones de texto con fondo de textura
-    private Texture fondoBoton;
-    private Rectangle btnReintentar;
-    private Rectangle btnNiveles;
-    private Rectangle btnMenu;
+    private Texture fondoTextura;
+    private Texture botonBaseTextura;
 
-    private static final float BTN_W  = 400f;
-    private static final float BTN_H  = 80f;
-    private static final float BTN_PAD = 24f;
+    private static final float BTN_W   = 250f;
+    private static final float BTN_H   = 60f;
+    private static final float BTN_PAD = 80f;
+
+    private float btnReintentarX, btnReintentarY;
+    private float btnNivelesX,    btnNivelesY;
+    private float btnMenuX,       btnMenuY;
 
     public PauseScreen(RaicesMain game, Screen pantallaAnterior) {
-        this.game = game;
+        this.game             = game;
         this.pantallaAnterior = pantallaAnterior;
 
         MusicManager.pausar();
 
         batch  = new SpriteBatch();
         font   = new BitmapFont();
-        font.getData().setScale(3f);
+        font.getData().setScale(2.0f);
         layout = new GlyphLayout();
 
         camera = new OrthographicCamera();
         camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
+        fondoTextura    = new Texture(Gdx.files.internal("fondo_menu.png"));
+        botonBaseTextura = new Texture(Gdx.files.internal("boton_base.png"));
+
+        calcularPosiciones();
+    }
+
+    private void calcularPosiciones() {
         float cx = Gdx.graphics.getWidth()  / 2f;
         float cy = Gdx.graphics.getHeight() / 2f;
 
-        btnReintentar = new Rectangle(cx - BTN_W/2, cy + BTN_H + BTN_PAD,     BTN_W, BTN_H);
-        btnNiveles    = new Rectangle(cx - BTN_W/2, cy,                        BTN_W, BTN_H);
-        btnMenu       = new Rectangle(cx - BTN_W/2, cy - BTN_H - BTN_PAD,     BTN_W, BTN_H);
+        btnReintentarX = cx - BTN_W / 2f;
+        btnReintentarY = cy + BTN_PAD;
 
-        // Fondo simple para botones (pixmap marrón)
-        com.badlogic.gdx.graphics.Pixmap pm = new com.badlogic.gdx.graphics.Pixmap(1, 1,
-            com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
-        pm.setColor(0.35f, 0.20f, 0.08f, 0.9f);
-        pm.fill();
-        fondoBoton = new Texture(pm);
-        pm.dispose();
+        btnNivelesX = cx - BTN_W / 2f;
+        btnNivelesY = cy;
+
+        btnMenuX = cx - BTN_W / 2f;
+        btnMenuY = cy - BTN_PAD;
     }
 
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(0f, 0f, 0f, 0.6f);
+        Gdx.gl.glClearColor(0.08f, 0.15f, 0.08f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         camera.update();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
 
+        // Fondo
+        batch.draw(fondoTextura, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
         // Título
-        font.getData().setScale(4f);
+        font.getData().setScale(3.0f);
         layout.setText(font, "PAUSA");
         font.draw(batch, "PAUSA",
             Gdx.graphics.getWidth() / 2f - layout.width / 2f,
-            btnReintentar.y + BTN_H + 80f
-        );
+            btnReintentarY + BTN_H + 80f);
+        font.getData().setScale(2.0f);
 
         // Botones
-        font.getData().setScale(2.5f);
-        dibujarBoton("Reintentar",    btnReintentar);
-        dibujarBoton("Ver niveles",   btnNiveles);
-        dibujarBoton("Menu principal",btnMenu);
+        batch.draw(botonBaseTextura, btnReintentarX, btnReintentarY, BTN_W, BTN_H);
+        batch.draw(botonBaseTextura, btnNivelesX,    btnNivelesY,    BTN_W, BTN_H);
+        batch.draw(botonBaseTextura, btnMenuX,       btnMenuY,       BTN_W, BTN_H);
+
+        // Textos
+        drawCenteredText("Volver al nivel",     btnReintentarX, btnReintentarY);
+        drawCenteredText("Ver niveles",    btnNivelesX,    btnNivelesY);
+        drawCenteredText("Menú principal", btnMenuX,       btnMenuY);
 
         batch.end();
 
-        // Touch
+        // Input
         if (Gdx.input.justTouched()) {
-            float tx = Gdx.input.getX();
-            float ty = Gdx.graphics.getHeight() - Gdx.input.getY();
+            Vector3 click = new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0);
+            camera.unproject(click);
 
-            if (btnReintentar.contains(tx, ty)) {
+            // DESPUÉS
+            if (sobreBoton(click.x, click.y, btnReintentarX, btnReintentarY)) {
                 MusicManager.reanudar();
-                game.setScreen(new GameScreen(game));
-            } else if (btnNiveles.contains(tx, ty)) {
+                game.setScreen(pantallaAnterior);      // ← vuelve exactamente donde se pausó
+            } else if (sobreBoton(click.x, click.y, btnNivelesX, btnNivelesY)) {
                 MusicManager.detener();
                 game.setScreen(new LevelSelectScreen(game));
-            } else if (btnMenu.contains(tx, ty)) {
+            } else if (sobreBoton(click.x, click.y, btnMenuX, btnMenuY)) {
                 MusicManager.detener();
                 game.setScreen(new MainMenuScreen(game));
             }
         }
     }
 
-    private void dibujarBoton(String texto, Rectangle r) {
-        batch.draw(fondoBoton, r.x, r.y, r.width, r.height);
+    private void drawCenteredText(String texto, float x, float y) {
         layout.setText(font, texto);
-        font.draw(batch, texto,
-            r.x + r.width / 2f - layout.width / 2f,
-            r.y + r.height / 2f + layout.height / 2f
-        );
+        float tx = x + BTN_W / 2f - layout.width  / 2f;
+        float ty = y + BTN_H / 2f + font.getLineHeight() / 3f;
+        font.draw(batch, texto, tx, ty);
     }
+
+    private boolean sobreBoton(float x, float y, float bx, float by) {
+        return x >= bx && x <= bx + BTN_W &&
+            y >= by && y <= by + BTN_H;
+    }
+
+    @Override public void show() {}
+    @Override public void resize(int w, int h) {
+        camera.setToOrtho(false, w, h);
+        calcularPosiciones();
+    }
+    @Override public void pause() {}
+    @Override public void resume() {}
+    @Override public void hide() {}
 
     @Override
     public void dispose() {
         batch.dispose();
         font.dispose();
-        fondoBoton.dispose();
+        fondoTextura.dispose();
+        botonBaseTextura.dispose();
     }
-
-    @Override public void show() {}
-    @Override public void resize(int w, int h) {}
-    @Override public void pause() {}
-    @Override public void resume() {}
-    @Override public void hide() {}
 }

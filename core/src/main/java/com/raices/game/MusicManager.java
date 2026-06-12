@@ -20,6 +20,11 @@ public class MusicManager {
     public static void reproducir(int nivel) {
         String archivo = (nivel >= 1 && nivel <= 4) ? MUSICAS[nivel] : MUSICAS[1];
 
+        // Fallback: si el archivo no existe usar música del nivel 1
+        if (!Gdx.files.internal(archivo).exists()) {
+            archivo = MUSICAS[1];
+        }
+
         // Si ya está sonando la misma no reiniciar
         if (archivo.equals(archivoActual) && musicaActual != null && musicaActual.isPlaying()) return;
 
